@@ -56,3 +56,58 @@ describe('optional package file loading', () => {
 		expect(unmounted.sort()).toEqual(['data/selectpackage/selectpackageitem.lua', 'data/selectpackage/selectpackageitem.lub']);
 	});
 });
+
+
+describe('supplementary package metadata', () => {
+	const supplement = 'data/selectpackage/supplement.lua';
+	// Model only the file/Lua boundary; parsing real client files is checked in integration.
+	function loader(files) {
+		let rows;
+		const lua = {
+			ctx: {}, mountFile() {}, unmountFile() {},
+			async doFile(path) {
+				rows = files[path];
+				if (rows instanceof Error) throw rows;
+			},
+			doStringSync(source) {
+				if (source.includes('if SelectPackageItemData then')) {
+					for (const row of rows) this.ctx.roPackageItem(...row);
+				}
+			}
+		};
+		return loadItemPackages(lua, 'data/', 20221005, (path, done, fail) => {
+			if (path in files) done(new Uint8Array());
+			else fail(new Error('Missing file'));
+		}, value => value, supplement);
+	}
+
+	it('adds absent boxes without replacing or extending any native box', async () => {
+		const packages = await loader({
+			'data/selectpackage/selectpackageitem.lub': [[100, 0, 501, 2, 0, 0, 0, 0]],
+			[supplement]: [[100, 0, 502, 9, 0, 0, 0, 0], [100, 1, 503, 1, 0, 0, 0, 0],
+				[200, 7, 21005, 1, 0, 7, 0, 0]]
+		});
+		expect(packages.get(100)).toEqual([{ id: 0, name: '', items: [
+			{ id: 501, amount: 2, hours: 0, refine: 0, randomOption: false, grade: 0 }
+		] }]);
+		expect(packages.get(200)).toEqual([{ id: 7, name: '', items: [
+			{ id: 21005, amount: 1, hours: 0, refine: 7, randomOption: false, grade: 0 }
+		] }]);
+	});
+
+	it('loads the supplement even when native aliases are absent', async () => {
+		const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			const packages = await loader({ [supplement]: [[200, 0, 501, 1, 0, 0, 0, 0]] });
+			expect(packages.get(200)[0].id).toBe(0);
+		} finally { warning.mockRestore(); }
+	});
+
+	it('retains native choices when the optional supplement is missing or unreadable', async () => {
+		const native = { 'data/selectpackage/selectpackageitem.lub': [[100, 0, 501, 2, 0, 0, 0, 0]] };
+		const missing = await loader(native);
+		const unreadable = await loader({ ...native, [supplement]: new Error('Invalid Lua') });
+		expect([...missing.keys()]).toEqual([100]);
+		expect(unreadable).toEqual(missing);
+	});
+});

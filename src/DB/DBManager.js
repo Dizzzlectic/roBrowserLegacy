@@ -403,8 +403,13 @@ class DB {
 			itemPackages = new Map();
 			if (PACKETVER.value >= 20220216) {
 				const done = onLoad();
-				loadItemPackages(lua, DB.LUA_PATH, PACKETVER.value, Client.loadFile.bind(Client), value =>
-					userStringDecoder.decode(value, userCharpage)
+				loadItemPackages(
+					lua,
+					DB.LUA_PATH,
+					PACKETVER.value,
+					Client.loadFile.bind(Client),
+					value => userStringDecoder.decode(value, userCharpage),
+					Configs.get('itemPackageSupplement')
 				)
 					.then(packages => {
 						itemPackages = packages;

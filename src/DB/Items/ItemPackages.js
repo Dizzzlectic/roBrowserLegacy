@@ -71,7 +71,8 @@ export function readItemPackages(lua, decode) {
 	return normalizeItemPackages({ names, items });
 }
 
-export async function loadItemPackages(lua, luaPath, packetver, loadFile, decode) {
+/** Optional supplement is a separate Lua file; native box definitions always win. */
+export async function loadItemPackages(lua, luaPath, packetver, loadFile, decode, supplement = null) {
 	const base = `${luaPath}selectpackage/`;
 	const files =
 		packetver >= 20250618
@@ -82,12 +83,11 @@ export async function loadItemPackages(lua, luaPath, packetver, loadFile, decode
 					'selectpackageitem.lua'
 				]
 			: ['selectpackageitem.lub', 'selectpackageitem.lua'];
-	const attempt = async index => {
-		if (index === files.length) {
-			console.warn('Selection package metadata unavailable; package boxes cannot be opened.');
+	const attempt = async (paths, index = 0) => {
+		if (index === paths.length) {
 			return new Map();
 		}
-		const path = base + files[index];
+		const path = paths[index];
 		let mounted = false;
 		try {
 			const file = await new Promise((resolve, reject) => loadFile(path, resolve, reject));
@@ -101,12 +101,24 @@ export async function loadItemPackages(lua, luaPath, packetver, loadFile, decode
 			}
 			return packages;
 		} catch (_error) {
-			return await attempt(index + 1);
+			return await attempt(paths, index + 1);
 		} finally {
 			if (mounted) {
 				lua.unmountFile(path);
 			}
 		}
 	};
-	return attempt(0);
+	const packages = await attempt(files.map(file => base + file));
+	if (supplement) {
+		// A supplement fills absent boxes only: even an incomplete native box owns all its choices.
+		for (const [box, groups] of await attempt([supplement])) {
+			if (!packages.has(box)) {
+				packages.set(box, groups);
+			}
+		}
+	}
+	if (!packages.size) {
+		console.warn('Selection package metadata unavailable; package boxes cannot be opened.');
+	}
+	return packages;
 }
