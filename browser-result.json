@@ -1,0 +1,30 @@
+{
+  "before": {
+    "webgl": true,
+    "rendering": true
+  },
+  "after": {
+    "rendering": false,
+    "callbacks": 0,
+    "loading": false,
+    "light": null,
+    "loginConnected": true,
+    "backgrounds": 1,
+    "frames": 7
+  },
+  "transition": {
+    "frames": 53,
+    "earlyLogin": false,
+    "firstLogin": {
+      "login": true,
+      "background": true,
+      "opacity": 1
+    },
+    "initial": {
+      "login": false,
+      "background": false,
+      "opacity": 0
+    }
+  },
+  "errors": []
+}
